@@ -1,0 +1,26 @@
+[project]
+name = "nifty-risk-lab"
+version = "0.1.0"
+description = "Finance analytics and market risk laboratory for NIFTY 50 and India VIX"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "yfinance>=0.2.35",
+    "matplotlib>=3.8.0",
+    "seaborn>=0.13.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "W"]
+ignore = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
