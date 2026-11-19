@@ -34,21 +34,26 @@ nifty-risk-lab/
 │   │   ├── var_exceptions.png
 │   │   ├── vix_vs_trailing_vol.png
 │   │   ├── volatility_risk_premium_over_time.png
-│   │   └── vix_vs_forward_realized_scatter.png
-│   ├── METHODS.md             # Mathematical definitions and econometric formulas
+│   │   ├── vix_vs_forward_realized_scatter.png
+│   │   └── atm_option_greeks_surface.png
+│   ├── METHODS.md             # Mathematical definitions, Black-Scholes formulas & limits
 │   ├── DATA_QUALITY.md        # Audit table of missing, filled, stale, and 5-sigma moves
 │   ├── RISK_FINDINGS.md       # VaR backtest analysis, VRP breakdown & tail risk findings
 │   └── PHASE_1_REPORT.md      # Phase 1 delivery report
+├── notebooks/
+│   └── option_greeks_surface.ipynb # ATM NIFTY option pricing & Greeks surface analysis
 ├── src/
 │   ├── __init__.py
 │   ├── download_data.py       # Ingests raw market data from Yahoo Finance
 │   ├── clean_data.py          # Calendar alignment, 3-day fill limit, and auditing
 │   ├── risk.py                # Volatility, drawdowns, VaR models & backtests
-│   └── vix_analysis.py        # India VIX vs realized vol, VRP spread & scatter analysis
+│   ├── vix_analysis.py        # India VIX vs realized vol, VRP spread & scatter analysis
+│   └── options.py             # European option pricing, Greeks, and implied vol solver
 ├── tests/
 │   ├── test_data_pipeline.py  # Tests for unique dates, sorting, alignment, and fill limit
 │   ├── test_risk_metrics.py   # Hand-calculated tests for drawdowns, volatility, and VaR
-│   └── test_vix_comparison.py # Tests for trailing/forward realized volatility and VRP
+│   ├── test_vix_comparison.py # Tests for trailing/forward realized volatility and VRP
+│   └── test_options.py        # Tests for Hull benchmark, put-call parity, finite diffs & IV
 ├── pyproject.toml             # Ruff and Pytest configurations
 ├── requirements.txt           # Minimal pinned dependencies
 └── README.md
@@ -77,4 +82,5 @@ python -m src.vix_analysis
 
 For mathematical formulas and assumptions, see [METHODS.md](docs/METHODS.md).  
 For the data quality audit, see [DATA_QUALITY.md](docs/DATA_QUALITY.md).  
-For risk analytics, VaR backtests & VRP findings, see [RISK_FINDINGS.md](docs/RISK_FINDINGS.md).
+For risk analytics, VaR backtests & VRP findings, see [RISK_FINDINGS.md](docs/RISK_FINDINGS.md).  
+For option pricing and Greeks surfaces, see [option_greeks_surface.ipynb](notebooks/option_greeks_surface.ipynb).
