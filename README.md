@@ -23,25 +23,32 @@ nifty-risk-lab/
 │       ├── market_daily.parquet
 │       ├── market_daily.csv
 │       ├── risk_metrics.parquet   # Daily risk analytics & VaR forecasts
-│       └── risk_metrics.csv
+│       ├── risk_metrics.csv
+│       ├── vix_analysis.parquet   # India VIX vs Realized Vol & VRP spread
+│       └── vix_analysis.csv
 ├── docs/
 │   ├── figures/               # High-resolution risk distribution & VaR charts
 │   │   ├── returns_distribution.png
 │   │   ├── rolling_volatility.png
 │   │   ├── drawdown_curve.png
-│   │   └── var_exceptions.png
+│   │   ├── var_exceptions.png
+│   │   ├── vix_vs_trailing_vol.png
+│   │   ├── volatility_risk_premium_over_time.png
+│   │   └── vix_vs_forward_realized_scatter.png
 │   ├── METHODS.md             # Mathematical definitions and econometric formulas
 │   ├── DATA_QUALITY.md        # Audit table of missing, filled, stale, and 5-sigma moves
-│   ├── RISK_FINDINGS.md       # VaR backtest analysis and tail risk findings
+│   ├── RISK_FINDINGS.md       # VaR backtest analysis, VRP breakdown & tail risk findings
 │   └── PHASE_1_REPORT.md      # Phase 1 delivery report
 ├── src/
 │   ├── __init__.py
 │   ├── download_data.py       # Ingests raw market data from Yahoo Finance
 │   ├── clean_data.py          # Calendar alignment, 3-day fill limit, and auditing
-│   └── risk.py                # Volatility, drawdowns, VaR models & backtests
+│   ├── risk.py                # Volatility, drawdowns, VaR models & backtests
+│   └── vix_analysis.py        # India VIX vs realized vol, VRP spread & scatter analysis
 ├── tests/
 │   ├── test_data_pipeline.py  # Tests for unique dates, sorting, alignment, and fill limit
-│   └── test_risk_metrics.py   # Hand-calculated tests for drawdowns, volatility, and VaR
+│   ├── test_risk_metrics.py   # Hand-calculated tests for drawdowns, volatility, and VaR
+│   └── test_vix_comparison.py # Tests for trailing/forward realized volatility and VRP
 ├── pyproject.toml             # Ruff and Pytest configurations
 ├── requirements.txt           # Minimal pinned dependencies
 └── README.md
@@ -65,8 +72,9 @@ pytest -v
 python -m src.download_data
 python -m src.clean_data
 python -m src.risk
+python -m src.vix_analysis
 ```
 
 For mathematical formulas and assumptions, see [METHODS.md](docs/METHODS.md).  
 For the data quality audit, see [DATA_QUALITY.md](docs/DATA_QUALITY.md).  
-For risk analytics & VaR backtest results, see [RISK_FINDINGS.md](docs/RISK_FINDINGS.md).
+For risk analytics, VaR backtests & VRP findings, see [RISK_FINDINGS.md](docs/RISK_FINDINGS.md).

@@ -106,3 +106,23 @@ Total observed breaches: $x = \sum_{t=1}^{N_{\text{eval}}} I_t$. Expected breach
 Tests the null hypothesis $H_0: p = \alpha$ against $H_1: p \neq \alpha$:
 $$\text{LR}_{\text{POF}} = -2 \ln \left( \frac{(1 - \alpha)^{N - x} \alpha^x}{(1 - \hat{p})^{N - x} \hat{p}^x} \right) \sim \chi^2(1)$$
 where $\hat{p} = x / N$. Under $H_0$, $\text{LR}_{\text{POF}}$ asymptotically follows a Chi-square distribution with 1 degree of freedom. If $p\text{-value} < 0.05$, the model's tail risk accuracy is rejected.
+
+---
+
+## 8. Implied vs. Realized Volatility & Volatility Risk Premium
+
+### 8.1 Trailing Realized Volatility
+Measures historical realized volatility over the past $W = 21$ trading days ending at date $t$:
+$$\sigma_{\text{trailing\_21d}, t} = \sqrt{\frac{1}{W - 1} \sum_{k=0}^{W-1} (r_{t-k} - \bar{r})^2} \times \sqrt{252}$$
+Strictly backward-looking; available at date $t$.
+
+### 8.2 Forward Realized Volatility (Retrospective Evaluation)
+Measures the actual realized volatility that manifested over the subsequent $W = 21$ trading days:
+$$\sigma_{\text{forward\_21d\_retrospective}, t} = \sqrt{\frac{1}{W - 1} \sum_{k=1}^{W} (r_{t+k} - \bar{r}_{\text{fwd}})^2} \times \sqrt{252}$$
+**Methodological Constraint**: This metric uses future returns $[t+1, \dots, t+21]$ and serves exclusively as a retrospective benchmark to evaluate option pricing efficiency. It is never a trade signal.
+
+### 8.3 Volatility Risk Premium (VRP) Spread
+$$\text{VRP}_t = \text{VIX}_t - \sigma_{\text{forward\_21d\_retrospective}, t}$$
+- $\text{VRP}_t > 0$: Implied volatility exceeded subsequent realized volatility (positive variance risk premium earned by option sellers).
+- $\text{VRP}_t < 0$: Market experienced a volatility shock exceeding implied expectations.
+
