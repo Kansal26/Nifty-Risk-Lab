@@ -452,3 +452,27 @@ def plot_event_study_paths(
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
     plt.close()
+
+
+if __name__ == "__main__":
+    import os
+
+    os.makedirs("data/clean", exist_ok=True)
+    os.makedirs("docs/figures", exist_ok=True)
+
+    summary_table, trajectory_panel, cross_stats = run_budget_event_study()
+
+    # Save to parquet and csv
+    summary_table.to_parquet("data/clean/budget_event_study.parquet", index=False)
+    summary_table.to_csv("data/clean/budget_event_study.csv", index=False)
+
+    trajectory_panel.to_parquet("data/clean/budget_event_trajectories.parquet", index=False)
+    trajectory_panel.to_csv("data/clean/budget_event_trajectories.csv", index=False)
+
+    # Plot
+    plot_event_study_paths(trajectory_panel, "docs/figures/budget_event_study_car.png")
+
+    print(f"Successfully processed {len(summary_table)} Union Budget events.")
+    print("Exported data/clean/budget_event_study.parquet and .csv")
+    print("Exported docs/figures/budget_event_study_car.png")
+
