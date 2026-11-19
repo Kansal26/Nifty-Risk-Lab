@@ -1,152 +1,196 @@
-"""Unit tests for Phase 1 Data Ingestion, Cleaning, and Returns Pipeline.
+"""Unit and integration tests for Phase 1 Data Pipeline.
 
 Verifies:
-1. Mathematical correctness of log return calculations and time additivity.
-2. VIX daily implied volatility formula.
-3. Annualisation factor (sqrt(252)).
-4. Rejection of invalid/negative price anomalies.
-5. Chronological alignment and avoidance of look-ahead leakage.
+1. No duplicate dates in cleaned or aligned datasets.
+2. Strictly sorted chronological index.
+3. Absence of negative prices / validation of price positivity.
+4. Calendar alignment with NIFTY 50 master trading calendar.
+5. Strict 3-day forward-fill limit (unfilled beyond 3 days).
+6. Mathematical accuracy of log returns and additivity.
 """
 
 from __future__ import annotations
+
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
 
 from src.clean_data import (
-    ANNUALISATION_FACTOR,
-    clean_price_series,
-    compute_nifty_returns,
-    compute_vix_metrics,
-    merge_nifty_and_vix,
+    align_series_with_fill_limit,
+    audit_series_quality,
+    clean_raw_series,
 )
 
 
-def test_log_return_formula_and_additivity() -> None:
-    """Verify log return formula: r_t = ln(P_t) - ln(P_{t-1}) and multi-period additivity."""
+def test_no_duplicate_dates() -> None:
+    """Ensure duplicate dates are eliminated and preserved uniquely."""
+    dates = [
+        pd.Timestamp("2024-01-02"),
+        pd.Timestamp("2024-01-01"),
+        pd.Timestamp("2024-01-01"),  # Duplicate
+        pd.Timestamp("2024-01-03"),
+    ]
+    raw = pd.DataFrame({"Date": dates, "Close": [102.0, 100.0, 999.0, 103.0]})
+    cleaned = clean_raw_series(raw, "test_dup")
+
+    assert cleaned["Date"].is_unique
+    assert len(cleaned) == 3
+    # Keeps first occurrence
+    assert cleaned.loc[cleaned["Date"] == pd.Timestamp("2024-01-01"), "Close"].iloc[0] == 100.0
+
+
+def test_sorted_index() -> None:
+    """Ensure cleaned series and master calendar are strictly monotonically increasing."""
+    dates = [
+        pd.Timestamp("2024-01-05"),
+        pd.Timestamp("2024-01-02"),
+        pd.Timestamp("2024-01-03"),
+    ]
+    raw = pd.DataFrame({"Date": dates, "Close": [105.0, 102.0, 103.0]})
+    cleaned = clean_raw_series(raw, "test_sort")
+
+    assert cleaned["Date"].is_monotonic_increasing
+    assert list(cleaned["Date"]) == [
+        pd.Timestamp("2024-01-02"),
+        pd.Timestamp("2024-01-03"),
+        pd.Timestamp("2024-01-05"),
+    ]
+
+
+def test_no_negative_prices() -> None:
+    """Ensure non-positive prices are detected and flagged in audit."""
     dates = pd.date_range("2024-01-01", periods=4, freq="D")
-    prices = [100.0, 105.0, 102.9, 110.0]
+    df = pd.DataFrame({
+        "Date": dates,
+        "test_asset_close": [100.0, -5.0, 0.0, 105.0],
+        "test_asset_log_return": [0.0, np.nan, np.nan, 0.05],
+    })
+
+    stats, _ = audit_series_quality(df, "test_asset")
+    assert stats["non_positive_count"] == 2
+
+
+def test_calendar_alignment() -> None:
+    """Ensure series aligns strictly to master calendar dates without foreign day leakage."""
+    # Master calendar has 5 Indian trading days
+    master_dates = pd.date_range("2024-01-01", periods=5, freq="B")
+
+    # Foreign series has some overlapping days, some missing, and some extra foreign-only days
+    foreign_dates = [
+        pd.Timestamp("2024-01-01"),
+        pd.Timestamp("2024-01-02"),
+        pd.Timestamp("2024-01-06"),  # Saturday (not in master)
+        pd.Timestamp("2024-01-07"),  # Sunday (not in master)
+    ]
+    foreign_df = pd.DataFrame({"Date": foreign_dates, "Close": [100.0, 102.0, 104.0, 105.0]})
+
+    aligned, _ = align_series_with_fill_limit(
+        foreign_df, pd.Series(master_dates), "foreign_asset", max_fill_limit=3
+    )
+
+    # Dates in aligned dataset must exactly match master calendar
+    assert len(aligned) == len(master_dates)
+    assert (aligned["Date"] == master_dates).all()
+    # Foreign weekend dates must not be present
+    assert pd.Timestamp("2024-01-06") not in aligned["Date"].values
+
+
+def test_fill_limit_max_3_days() -> None:
+    """Verify that forward-filling strictly stops after 3 consecutive days."""
+    master_dates = pd.date_range("2024-01-01", periods=6, freq="D")
+
+    # Foreign series only observed on Day 0 (2024-01-01)
+    # Days 1, 2, 3 should be forward-filled (fill_count = 1, 2, 3)
+    # Days 4, 5 must remain NaN (unfilled, fill_count > 3)
+    foreign_df = pd.DataFrame({
+        "Date": [pd.Timestamp("2024-01-01")],
+        "Close": [200.0],
+    })
+
+    aligned, summary = align_series_with_fill_limit(
+        foreign_df, pd.Series(master_dates), "test_fill", max_fill_limit=3
+    )
+
+    # Day 0: observed
+    assert aligned.loc[0, "test_fill_close"] == 200.0
+    assert aligned.loc[0, "test_fill_fill_count"] == 0
+
+    # Day 1: filled 1 day
+    assert aligned.loc[1, "test_fill_close"] == 200.0
+    assert aligned.loc[1, "test_fill_fill_count"] == 1
+
+    # Day 2: filled 2 days
+    assert aligned.loc[2, "test_fill_close"] == 200.0
+    assert aligned.loc[2, "test_fill_fill_count"] == 2
+
+    # Day 3: filled 3 days
+    assert aligned.loc[3, "test_fill_close"] == 200.0
+    assert aligned.loc[3, "test_fill_fill_count"] == 3
+
+    # Day 4: exceeds limit -> NaN
+    assert pd.isna(aligned.loc[4, "test_fill_close"])
+    assert aligned.loc[4, "test_fill_fill_count"] == 4
+
+    # Day 5: exceeds limit -> NaN
+    assert pd.isna(aligned.loc[5, "test_fill_close"])
+    assert aligned.loc[5, "test_fill_fill_count"] == 5
+
+    assert summary["filled_1d"] == 1
+    assert summary["filled_2d"] == 1
+    assert summary["filled_3d"] == 1
+    assert summary["unfilled_after_limit"] == 2
+
+
+def test_log_return_and_additivity() -> None:
+    """Verify log return formula: r_t = ln(P_t) - ln(P_{t-1}) and additivity."""
+    prices = [100.0, 105.0, 102.9]
+    dates = pd.date_range("2024-01-01", periods=3, freq="D")
     df = pd.DataFrame({"Date": dates, "Close": prices})
 
-    res = compute_nifty_returns(df)
+    aligned, _ = align_series_with_fill_limit(df, pd.Series(dates), "asset", max_fill_limit=3)
 
-    # First return must be NaN
-    assert pd.isna(res.loc[0, "log_return"])
+    # First return is NaN
+    assert pd.isna(aligned.loc[0, "asset_log_return"])
 
     # r_1 = ln(105 / 100)
     expected_r1 = np.log(105.0 / 100.0)
-    assert np.isclose(res.loc[1, "log_return"], expected_r1, atol=1e-10)
+    assert np.isclose(aligned.loc[1, "asset_log_return"], expected_r1, atol=1e-10)
 
-    # r_2 = ln(102.9 / 105.0)
-    expected_r2 = np.log(102.9 / 105.0)
-    assert np.isclose(res.loc[2, "log_return"], expected_r2, atol=1e-10)
-
-    # Multi-period additivity check: sum(r_t) == ln(P_T / P_0)
-    total_log_return = res["log_return"].dropna().sum()
-    expected_cumulative = np.log(prices[-1] / prices[0])
-    assert np.isclose(total_log_return, expected_cumulative, atol=1e-10)
+    # Cumulative return additivity: sum(r_t) == ln(P_T / P_0)
+    cum_ret = aligned["asset_log_return"].dropna().sum()
+    expected_cum = np.log(prices[-1] / prices[0])
+    assert np.isclose(cum_ret, expected_cum, atol=1e-10)
 
 
-def test_vix_daily_implied_formula() -> None:
-    """Verify VIX daily implied formula: sigma_daily = (VIX / 100) / sqrt(252)."""
-    dates = pd.date_range("2024-01-01", periods=2, freq="D")
-    # Choose VIX = 100 * sqrt(252) * 0.01 so daily implied is exactly 0.01 (1%)
-    target_daily = 0.01
-    vix_value = target_daily * 100.0 * ANNUALISATION_FACTOR
-    df = pd.DataFrame({"Date": dates, "Close": [vix_value, vix_value + 1.0]})
+def test_market_daily_clean_files_if_present() -> None:
+    """Validate data integrity of generated clean files if present on disk."""
+    parquet_path = Path("data/clean/market_daily.parquet")
+    csv_path = Path("data/clean/market_daily.csv")
 
-    res = compute_vix_metrics(df)
+    if not parquet_path.exists():
+        pytest.skip("market_daily.parquet not yet generated on disk.")
 
-    assert np.isclose(res.loc[0, "vix_daily_implied"], target_daily, atol=1e-10)
-    assert np.isclose(res.loc[1, "vix_change"], 1.0, atol=1e-10)
-
-
-def test_annualisation_factor_value() -> None:
-    """Verify the annualisation factor sqrt(252) equals ~15.8745."""
-    expected = np.sqrt(252)
-    assert np.isclose(ANNUALISATION_FACTOR, expected, atol=1e-10)
-    assert np.isclose(ANNUALISATION_FACTOR, 15.874507866387544, atol=1e-6)
-
-
-def test_clean_price_series_validates_positivity() -> None:
-    """Verify that non-positive prices trigger a ValueError."""
-    dates = pd.date_range("2024-01-01", periods=3, freq="D")
-    df_invalid = pd.DataFrame({"Date": dates, "Close": [100.0, -5.0, 102.0]})
-
-    with pytest.raises(ValueError, match="non-positive price"):
-        clean_price_series(df_invalid, "TEST_TICKER")
-
-
-def test_clean_price_series_deduplicates_and_sorts() -> None:
-    """Verify date deduplication and ascending chronological ordering."""
-    dates = [
-        pd.Timestamp("2024-01-03"),
-        pd.Timestamp("2024-01-01"),
-        pd.Timestamp("2024-01-01"),  # Duplicate
-        pd.Timestamp("2024-01-02"),
-    ]
-    df = pd.DataFrame({"Date": dates, "Close": [103.0, 101.0, 999.0, 102.0]})
-
-    cleaned = clean_price_series(df, "TEST_TICKER")
-
-    assert len(cleaned) == 3
-    assert list(cleaned["Date"]) == [
-        pd.Timestamp("2024-01-01"),
-        pd.Timestamp("2024-01-02"),
-        pd.Timestamp("2024-01-03"),
-    ]
-    # Retained the first occurrence of 2024-01-01
-    assert cleaned.loc[0, "Close"] == 101.0
-
-
-def test_merge_no_lookahead_and_alignment() -> None:
-    """Verify inner join on Date with no forward-looking leaks."""
-    dates_nifty = pd.date_range("2024-01-01", periods=5, freq="D")
-    dates_vix = pd.date_range("2024-01-02", periods=5, freq="D")
-
-    nifty_df = pd.DataFrame({
-        "Date": dates_nifty,
-        "Open": [100.0] * 5,
-        "High": [105.0] * 5,
-        "Low": [95.0] * 5,
-        "Close": [100.0, 102.0, 101.0, 104.0, 103.0],
-        "Volume": [1000] * 5,
-    })
-    nifty_df = compute_nifty_returns(clean_price_series(nifty_df, "NIFTY"))
-
-    vix_df = pd.DataFrame({
-        "Date": dates_vix,
-        "Open": [15.0] * 5,
-        "High": [16.0] * 5,
-        "Low": [14.0] * 5,
-        "Close": [15.0, 15.5, 14.8, 15.2, 16.0],
-    })
-    vix_df = compute_vix_metrics(clean_price_series(vix_df, "VIX"))
-
-    merged = merge_nifty_and_vix(nifty_df, vix_df)
-
-    # Dates should only be the overlapping days where both have valid t and t-1 data
-    for d in merged["Date"]:
-        assert d in dates_nifty
-        assert d in dates_vix
-
-    # Ensure strictly sorted by date ascending
-    assert (merged["Date"].diff().dropna() > pd.Timedelta(0)).all()
-
-
-def test_processed_clean_files_if_present() -> None:
-    """Validate data integrity of generated clean datasets if available on disk."""
-    from pathlib import Path
-
-    clean_merged_path = Path("data/clean/nifty_vix_daily.csv")
-    if not clean_merged_path.exists():
-        pytest.skip("Processed dataset not yet generated on disk.")
-
-    df = pd.read_csv(clean_merged_path)
+    df = pd.read_parquet(parquet_path)
     assert not df.empty
-    assert (df["nifty_close"] > 0).all()
-    assert (df["vix_close"] > 0).all()
+    assert "Date" in df.columns
     assert df["Date"].is_monotonic_increasing
-    assert df.isna().sum().sum() == 0
+    assert df["Date"].is_unique
 
+    # Verify Nifty 50 close price is positive and has no fills (master calendar)
+    assert (df["nifty50_close"] > 0).all()
+    assert (df["nifty50_fill_count"] == 0).all()
+
+    # Verify fill limit: any filled price has fill_count <= 3
+    for series in ["sp500", "brent_crude", "usdinr", "us10y_yield"]:
+        fill_col = f"{series}_fill_count"
+        close_col = f"{series}_close"
+        if fill_col in df.columns:
+            # If close is not null, fill_count must be <= 3
+            filled_rows = df[df[close_col].notna()]
+            assert (filled_rows[fill_col] <= 3).all()
+
+    if csv_path.exists():
+        df_csv = pd.read_csv(csv_path)
+        assert len(df_csv) == len(df)
