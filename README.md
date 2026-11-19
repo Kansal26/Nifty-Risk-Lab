@@ -20,7 +20,7 @@ nifty-risk-lab/
 │   │   ├── usdinr_raw.csv
 │   │   ├── us10y_yield_raw.csv
 │   │   └── budget_events.csv      # Verified Union Budget presentation dates
-│   └── clean/                 # Master aligned dataset & Power BI export
+│   └── clean/                 # Master aligned dataset & intermediate parquets
 │       ├── market_daily.parquet
 │       ├── market_daily.csv
 │       ├── risk_metrics.parquet   # Daily risk analytics & VaR forecasts
@@ -31,6 +31,15 @@ nifty-risk-lab/
 │       ├── budget_event_study.csv
 │       ├── budget_event_trajectories.parquet # Daily event window panel
 │       └── budget_event_trajectories.csv
+├── exports/                   # Tidy analytical CSVs for Power BI on the web
+│   ├── market_daily.csv
+│   ├── risk_metrics.csv
+│   ├── vol_comparison.csv
+│   ├── var_backtest.csv
+│   ├── budget_events_summary.csv
+│   ├── budget_event_paths.csv
+│   ├── correlations.csv       # Rolling 60d correlations with global series
+│   └── date_table.csv         # Calendar date dimension table with budget flags
 ├── docs/
 │   ├── figures/               # High-resolution risk distribution & VaR charts
 │   │   ├── returns_distribution.png
@@ -46,6 +55,7 @@ nifty-risk-lab/
 │   ├── DATA_QUALITY.md        # Audit table of missing, filled, stale, and 5-sigma moves
 │   ├── RISK_FINDINGS.md       # VaR backtest analysis, VRP breakdown & tail risk findings
 │   ├── EVENT_FINDINGS.md      # Union Budget event study empirical findings & limitations
+│   ├── POWERBI_GUIDE.md       # Data model, DAX measures, visual layouts & limitations
 │   └── PHASE_1_REPORT.md      # Phase 1 delivery report
 ├── notebooks/
 │   └── option_greeks_surface.ipynb # ATM NIFTY option pricing & Greeks surface analysis
@@ -56,13 +66,15 @@ nifty-risk-lab/
 │   ├── risk.py                # Volatility, drawdowns, VaR models & backtests
 │   ├── vix_analysis.py        # India VIX vs realized vol, VRP spread & scatter analysis
 │   ├── options.py             # European option pricing, Greeks, and implied vol solver
-│   └── event_study.py         # Union Budget event study, CAR analysis & market models
+│   ├── event_study.py         # Union Budget event study, CAR analysis & market models
+│   └── export_powerbi.py      # Generates tidy CSV exports & date dimension table
 ├── tests/
 │   ├── test_data_pipeline.py  # Tests for unique dates, sorting, alignment, and fill limit
 │   ├── test_risk_metrics.py   # Hand-calculated tests for drawdowns, volatility, and VaR
 │   ├── test_vix_comparison.py # Tests for trailing/forward realized volatility and VRP
 │   ├── test_options.py        # Tests for Hull benchmark, put-call parity, finite diffs & IV
-│   └── test_event_study.py    # Tests for market model OLS, synthetic ARs & calendar roll
+│   ├── test_event_study.py    # Tests for market model OLS, synthetic ARs & calendar roll
+│   └── test_export_powerbi.py # Tests for Power BI tidy CSV schemas and ISO dates
 ├── pyproject.toml             # Ruff and Pytest configurations
 ├── requirements.txt           # Minimal pinned dependencies
 └── README.md
@@ -88,10 +100,12 @@ python -m src.clean_data
 python -m src.risk
 python -m src.vix_analysis
 python -m src.event_study
+python -m src.export_powerbi
 ```
 
 For mathematical formulas and assumptions, see [METHODS.md](docs/METHODS.md).  
 For the data quality audit, see [DATA_QUALITY.md](docs/DATA_QUALITY.md).  
 For risk analytics, VaR backtests & VRP findings, see [RISK_FINDINGS.md](docs/RISK_FINDINGS.md).  
 For Union Budget event study findings & limitations, see [EVENT_FINDINGS.md](docs/EVENT_FINDINGS.md).  
+For Power BI web data modeling & DAX measures, see [POWERBI_GUIDE.md](docs/POWERBI_GUIDE.md).  
 For option pricing and Greeks surfaces, see [option_greeks_surface.ipynb](notebooks/option_greeks_surface.ipynb).
