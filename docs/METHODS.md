@@ -188,4 +188,59 @@ While Black-Scholes provides a baseline analytical framework, index options in p
    - *Assumption*: Frictionless continuous trading, zero bid-ask spread, zero transaction costs.
    - *Reality*: In Indian derivative markets, Securities Transaction Tax (STT), exchange turnover charges, bid-ask spreads in illiquid OTM wings, and discrete trading sessions restrict continuous dynamic delta hedging.
 
+---
+
+## 10. Event Study Methodology: Union Budget Impact Analysis
+
+### 10.1 Event Definition & Calendar Mapping
+The event is the presentation of the Government of India Union Budget to Parliament:
+- **Event Day $\tau = 0$**: Defined as the official Budget presentation date. If the presentation occurs on a weekend or exchange holiday when Indian markets are closed (e.g. Saturday, 2020-02-01), $\tau = 0$ is assigned to the immediate next regular NSE trading session (Monday, 2020-02-03) and documented explicitly.
+- **Master Trading Calendar**: All relative event days $\tau$ are indexed strictly in **trading days** (exchange trading sessions) rather than calendar days.
+
+### 10.2 Timeline Specification
+For each event $i$:
+1. **Estimation Window**: $\tau \in [-120, -21]$ (100 trading days). This window ends 21 trading days prior to the budget to ensure parameter estimates are unpolluted by pre-budget leaks, rumors, or positioning.
+2. **Event Window**: $\tau \in [-5, +5]$ (11 trading days centered on presentation day $\tau = 0$).
+
+### 10.3 Normal and Abnormal Return Modeling
+For asset return $R_{i, \tau}$ on relative event day $\tau$:
+
+#### 1. NIFTY 50 (Constant Mean Return Model)
+The normal benchmark return $\bar{R}_i$ is the sample mean daily log return during the estimation window:
+$$\bar{R}_i = \frac{1}{100} \sum_{\tau=-120}^{-21} R_{\text{NIFTY}, i, \tau}$$
+The abnormal return on event day $\tau \in [-5, +5]$ is:
+$$AR_{\text{NIFTY}, i, \tau} = R_{\text{NIFTY}, i, \tau} - \bar{R}_i$$
+
+#### 2. Bank NIFTY (Market Model Regression)
+Because Bank NIFTY is strongly correlated with the broader market but carries sector-specific beta exposure, normal return is estimated via an Ordinary Least Squares (OLS) regression against NIFTY 50 over the estimation window $[-120, -21]$:
+$$R_{\text{BN}, i, \tau} = \hat{\alpha}_i + \hat{\beta}_i R_{\text{NIFTY}, i, \tau} + \epsilon_{i, \tau}$$
+where:
+$$\hat{\beta}_i = \frac{\text{Cov}(R_{\text{BN}}, R_{\text{NIFTY}})}{\text{Var}(R_{\text{NIFTY}})}, \quad \hat{\alpha}_i = \bar{R}_{\text{BN}, i} - \hat{\beta}_i \bar{R}_{\text{NIFTY}, i}$$
+The abnormal return in the event window is:
+$$AR_{\text{BN}, i, \tau} = R_{\text{BN}, i, \tau} - \left( \hat{\alpha}_i + \hat{\beta}_i R_{\text{NIFTY}, i, \tau} \right)$$
+
+### 10.4 Cumulative Abnormal Returns (CAR)
+Cumulative abnormal returns aggregate abnormal performance across multi-day sub-windows:
+$$CAR_i[\tau_1, \tau_2] = \sum_{\tau=\tau_1}^{\tau_2} AR_{i, \tau}$$
+The study computes:
+- **Announcement Window $CAR[-1, +1]$**: Captures the immediate 3-day market reaction including day -1 pre-positioning and day +1 digestion.
+- **Post-Budget Drift Window $CAR[0, +5]$**: Captures post-presentation policy absorption over the subsequent week.
+
+### 10.5 Level Changes for India VIX and USD/INR
+For non-stationary economic series (implied volatility and currency levels), measuring percentage returns can obscure regime shifts. The study tracks the **cumulative change in level relative to pre-event baseline (Day -1)**:
+$$\Delta \text{VIX}_{i, \tau} = \text{VIX}_{i, \tau} - \text{VIX}_{i, -1} \quad (\text{percentage points})$$
+$$\Delta \text{USDINR}_{i, \tau} = \text{USDINR}_{i, \tau} - \text{USDINR}_{i, -1} \quad (\text{rupees per dollar})$$
+
+### 10.6 Cross-Sectional Aggregation & Significance Testing
+Across the $N = 9$ Budget events:
+- **Average Abnormal Return (AAR)**:
+  $$AAR_{\tau} = \frac{1}{N} \sum_{i=1}^N AR_{i, \tau}$$
+- **Cumulative Average Abnormal Return (CAAR)**:
+  $$CAAR[\tau_1, \tau_2] = \frac{1}{N} \sum_{i=1}^N CAR_i[\tau_1, \tau_2]$$
+- **Standard Error & Cross-Sectional $t$-statistic**:
+  $$s = \sqrt{\frac{1}{N - 1} \sum_{i=1}^N \left( CAR_i[\tau_1, \tau_2] - CAAR[\tau_1, \tau_2] \right)^2}$$
+  $$SE(CAAR) = \frac{s}{\sqrt{N}}, \quad t_{\text{stat}} = \frac{CAAR[\tau_1, \tau_2]}{SE(CAAR)}$$
+Under the null hypothesis $H_0: CAAR = 0$, $t_{\text{stat}}$ follows a Student's $t$-distribution with $N - 1$ degrees of freedom. Statistical significance is rejected unless $p\text{-value} < 0.05$.
+
+
 
