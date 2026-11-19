@@ -1,12 +1,19 @@
 """Data ingestion module for nifty-risk-lab.
 
-Downloads daily OHLCV historical market data for NIFTY 50 (^NSEI)
-and India VIX (^INDIAVIX) from Yahoo Finance.
+Downloads daily OHLCV historical market data from 2015-01-01 to present
+for all core asset classes and risk proxies:
+1. NIFTY 50 (^NSEI) - Indian benchmark equity index
+2. Bank NIFTY (^NSEBANK) - High-beta Indian banking index
+3. India VIX (^INDIAVIX) - Indian 30-day implied volatility
+4. S&P 500 (^GSPC) - Global equity risk benchmark
+5. Brent Crude Oil (BZ=F) - Energy input / macro commodity proxy
+6. USD/INR (INR=X) - Foreign exchange / currency risk proxy
+7. US 10Y Yield (^TNX) - Global risk-free rate / cost of capital proxy
 
-Rule Compliance:
-- Never invents, estimates, or substitutes data. If the download fails or returns empty data,
-  it halts execution with an explicit error.
-- Pure raw ingestion; no forward-looking calculations applied at this stage.
+Rules:
+- Never invent, estimate, or substitute data. If a source fails, halt and stop.
+- Inspect ^INDIAVIX specifically for failures or large gaps.
+- Save raw files untouched in data/raw/.
 """
 
 from __future__ import annotations
@@ -18,7 +25,6 @@ from pathlib import Path
 import pandas as pd
 import yfinance as yf
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -27,11 +33,17 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 RAW_DATA_DIR = Path("data/raw")
-TICKERS = {
-    "nifty50": "^NSEI",
-    "india_vix": "^INDIAVIX",
-}
 START_DATE = "2015-01-01"
+
+TICKERS: dict[str, str] = {
+    "nifty50": "^NSEI",
+    "bank_nifty": "^NSEBANK",
+    "india_vix": "^INDIAVIX",
+    "sp500": "^GSPC",
+    "brent_crude": "BZ=F",
+    "usdinr": "INR=X",
+    "us10y_yield": "^TNX",
+}
 
 
 def download_ticker_data(
@@ -42,7 +54,7 @@ def download_ticker_data(
     Parameters
     ----------
     ticker : str
-        Ticker symbol on Yahoo Finance (e.g., '^NSEI', '^INDIAVIX').
+        Ticker symbol on Yahoo Finance.
     start_date : str
         Start date in 'YYYY-MM-DD' format.
     end_date : str, optional
@@ -51,7 +63,7 @@ def download_ticker_data(
     Returns
     -------
     pd.DataFrame
-        Downloaded OHLCV historical dataframe.
+        Downloaded raw OHLCV dataframe.
 
     Raises
     ------
@@ -88,8 +100,55 @@ def download_ticker_data(
     return df
 
 
+def audit_india_vix(df: pd.DataFrame) -> None:
+    """Inspect India VIX dataset for missing sections or large unexpected gaps.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Raw India VIX dataset.
+
+    Raises
+    ------
+    RuntimeError
+        If India VIX exhibits critical failures or unexpected prolonged gaps (> 10 calendar days).
+    """
+    if "Date" not in df.columns:
+        raise RuntimeError("Fatal: India VIX dataset missing 'Date' column.")
+
+    dates = pd.to_datetime(df["Date"]).sort_values().reset_index(drop=True)
+    calendar_diffs = dates.diff().dt.days
+
+    # Identify any gap strictly greater than 10 calendar days (which would exceed long holidays)
+    large_gaps = calendar_diffs[calendar_diffs > 10]
+    if not large_gaps.empty:
+        gap_indices = large_gaps.index
+        gap_details = [
+            (
+                f"From {dates.iloc[idx - 1].strftime('%Y-%m-%d')} to "
+                f"{dates.iloc[idx].strftime('%Y-%m-%d')} ({large_gaps.loc[idx]} days)"
+            )
+            for idx in gap_indices
+        ]
+        logger.error(
+            "CRITICAL: ^INDIAVIX has large gap(s) exceeding 10 calendar days:\n%s",
+            "\n".join(gap_details),
+        )
+        raise RuntimeError(
+            f"^INDIAVIX has large data gaps: {gap_details}. "
+            "Execution stopped. Please download India VIX manually from NSE."
+        )
+
+    logger.info(
+        "^INDIAVIX audit passed: %d observations between %s and %s with no abnormal gaps.",
+        len(dates),
+        dates.min().strftime("%Y-%m-%d"),
+        dates.max().strftime("%Y-%m-%d"),
+    )
+
+
 def save_raw_data(df: pd.DataFrame, file_path: Path) -> None:
-    """Save raw data to CSV file.
+    """Save raw data to CSV file untouched.
 
     Parameters
     ----------
@@ -104,15 +163,21 @@ def save_raw_data(df: pd.DataFrame, file_path: Path) -> None:
 
 
 def run_pipeline() -> None:
-    """Execute ingestion pipeline for all project tickers."""
+    """Execute download pipeline for all project tickers and save untouched raw files."""
     RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
+    downloaded: dict[str, pd.DataFrame] = {}
     for name, ticker in TICKERS.items():
         df = download_ticker_data(ticker, start_date=START_DATE)
+        if name == "india_vix":
+            audit_india_vix(df)
+        downloaded[name] = df
+
+    for name, df in downloaded.items():
         dest_path = RAW_DATA_DIR / f"{name}_raw.csv"
         save_raw_data(df, dest_path)
 
-    logger.info("Data ingestion completed successfully.")
+    logger.info("All 7 raw market datasets downloaded and saved untouched.")
 
 
 def main() -> None:
