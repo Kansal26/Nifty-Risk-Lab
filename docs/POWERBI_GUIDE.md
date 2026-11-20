@@ -229,14 +229,14 @@ CALCULATE(
 
 #### Layout & Visual Cards:
 1. **Top Slicers & Filters**:
-   - Budget Event Slicer: Dropdown from `budget_events_summary[event_date]` (covers all 9 verified budgets between `2016-02-29` and `2024-02-01`).
+   - Budget Event Slicer: Dropdown from `budget_events_summary[event_date]` (covers the 9 most recent budgets between `2019-07-05` and `2026-02-01`).
    - Series Filter / Legend: `budget_event_paths[series_label]` (allows selecting individual budget dates or `'Average'` for the cross-event average line).
    - Budget Type Filter: Slicer for `'Union Budget'` vs `'Interim Budget'`.
 2. **Header KPI Cards**:
-   - Card 1: `Average CAR[-1, +1]`: `+1.53%` (exact mean $+1.526\%$, $t = +1.807, p = 0.1083$).
-   - Card 2: `Average CAR[0, +5]`: `+1.61%` (exact mean $+1.613\%$, $t = +1.194, p = 0.2666$).
-   - Card 3: `Average Day-0 VIX Change`: `-1.67 pts` (exact mean $-1.673$ points, $t = -6.926, p = 0.0001$).
-   - Card 4: `Day-0 Win Rate`: `44.4%` (4 positive abnormal return days out of 9 presentations).
+   - Card 1: `Average CAR[-1, +1]`: `+0.71%` (exact mean $+0.7095\%$, $t = +0.842, p = 0.4240$).
+   - Card 2: `Average CAR[0, +5]`: `+0.82%` (exact mean $+0.8168\%$, $t = +0.705, p = 0.5006$).
+   - Card 3: `Average Day-0 VIX Change`: `-1.13 pts` (exact mean $-1.1311$ points, $t = -3.196, p = 0.0127$).
+   - Card 4: `Day-0 Win Rate`: `22.2%` (2 positive abnormal return days out of 9 presentations).
 3. **Visual 1 (Event Path Line Chart - 55% Width)**:
    - Source: `exports/budget_event_paths.csv` / `budget_event_paths`
    - X-Axis: `budget_event_paths[tau]` (Relative trading day from $-5$ to $+5$).
@@ -248,7 +248,7 @@ CALCULATE(
      - Columns: `event_date`, `budget_type`, `finance_minister`, `nifty_day0_ar_pct`, `nifty_car_minus1_plus1_pct`, `nifty_car_0_plus5_pct`, `vix_day0_change`, `notes`.
 
 #### Headline Finding (Written strictly from the data):
-> **Data Headline:** "Across all 9 Union Budgets presented between 2016-02-29 and 2024-02-01, India VIX experienced a universal Day-0 volatility drop (mean -1.673 points, $t = -6.926, p = 0.0001$, dropping on 9 of 9 presentation days), whereas equity abnormal returns (+1.526% CAR[-1, +1]) remain statistically indistinguishable from zero ($t = +1.807, p = 0.1083$). Day-0 abnormal returns were positive in 4 of 9 events (44.4% win rate)."
+> **Data Headline:** "Across the 9 most recent Union Budgets presented between 2019-07-05 and 2026-02-01, India VIX experienced a statistically significant Day-0 volatility drop (mean -1.131 points, $t = -3.196, p = 0.0127$), whereas equity abnormal returns (+0.710% CAR[-1, +1]) remain statistically indistinguishable from zero ($t = +0.842, p = 0.4240$). Day-0 abnormal returns were positive in 2 of 9 events (22.2% win rate)."
 
 #### What This Cannot Tell You:
 > **Limitations Note:** "This event study reflects close-to-close price adjustments across only 9 sample events; it cannot capture the violent intraday whipsaws during the 11:00 AM live parliamentary budget speech, nor does it isolate the budget impact from concurrent global macro events."

@@ -184,7 +184,7 @@ This document specifies the exact schema, data types, physical units, and analyt
 |:---|:---|:---|:---|:---|
 | `metric` | String | Text | Metric Identifier | Programmatic metric identifier key (e.g., `latest_nifty_close`). |
 | `value` | Float | Number | Mixed Units | Numeric value of the metric (see detailed unit per metric in table below). |
-| `as_of_date` | String / ISO Date | Date (`d`, `yyyy-mm-dd`) | Calendar Date | Effective as-of date for the metric observation (`2026-11-18` for market data, `2024-02-01` for event data). |
+| `as_of_date` | String / ISO Date | Date (`d`, `yyyy-mm-dd`) | Calendar Date | Effective as-of date for the metric observation (`2026-11-18` for market data, `2026-02-01` for event data). |
 | `source_file` | String | Text | Filename | Primary tidy CSV export file containing the underlying observations. |
 
 ### Summary of KPI Metrics and Individual Units
@@ -199,7 +199,8 @@ This document specifies the exact schema, data types, physical units, and analyt
 | `var_exceptions_99_normal` | `50.0` | Integer Count | `var_backtest.csv` | Total observed exceptions for 99% Parametric Normal VaR on NIFTY 50. |
 | `expected_exceptions_99_normal` | `26.7` | Float Count | `var_backtest.csv` | Expected number of exceptions for 99% VaR over 2,673 evaluation days. |
 | `kupiec_p_value_99_normal` | `0.0001` | Probability $[0, 1]$ | `var_backtest.csv` | Kupiec POF p-value for 99% Normal VaR ($p < 0.05$ demonstrates normality assumption failure). |
-| `average_car_minus1_plus1` | `1.5259` | Percentage Points (%) | `budget_events_summary.csv` | Mean NIFTY 50 Cumulative Abnormal Return across all 9 Budget events over $[-1, +1]$. |
-| `average_car_0_plus5` | `1.6135` | Percentage Points (%) | `budget_events_summary.csv` | Mean NIFTY 50 Cumulative Abnormal Return across all 9 Budget events over $[0, +5]$. |
-| `day0_win_rate` | `0.4444` | Decimal Fraction | `budget_events_summary.csv` | Proportion of Budget presentations with positive Day 0 abnormal return (4 of 9 events = $44.4\%$). |
-| `average_day0_vix_change` | `-1.6733` | Index Points (Net Change) | `budget_events_summary.csv` | Mean Day 0 change in India VIX closing level (systematic post-event volatility compression). |
+| `average_car_minus1_plus1` | `0.7095` | Percentage Points (%) | `budget_events_summary.csv` | Mean NIFTY 50 Cumulative Abnormal Return across the 9 recent Budgets over $[-1, +1]$. |
+| `average_car_0_plus5` | `0.8168` | Percentage Points (%) | `budget_events_summary.csv` | Mean NIFTY 50 Cumulative Abnormal Return across the 9 recent Budgets over $[0, +5]$. |
+| `day0_win_rate` | `0.2222` | Decimal Fraction | `budget_events_summary.csv` | Proportion of Budget presentations with positive Day 0 abnormal return (2 of 9 events = $22.2\%$). |
+| `average_day0_vix_change` | `-1.1311` | Index Points (Net Change) | `budget_events_summary.csv` | Mean Day 0 change in India VIX closing level (systematic post-event volatility compression). |
+
