@@ -1,0 +1,13 @@
+metric,value,as_of_date,source_file
+latest_nifty_close,25227.95,2026-11-18,market_daily.csv
+latest_daily_log_return,-0.006301,2026-11-18,market_daily.csv
+latest_india_vix,15.57,2026-11-18,market_daily.csv
+latest_trailing_20d_realized_volatility,0.1406,2026-11-18,risk_metrics.csv
+current_drawdown,-0.0418,2026-11-18,risk_metrics.csv
+var_exceptions_99_normal,50.0,2026-11-18,var_backtest.csv
+expected_exceptions_99_normal,26.7,2026-11-18,var_backtest.csv
+kupiec_p_value_99_normal,0.0001,2026-11-18,var_backtest.csv
+average_car_minus1_plus1,1.5259,2024-02-01,budget_events_summary.csv
+average_car_0_plus5,1.6135,2024-02-01,budget_events_summary.csv
+day0_win_rate,0.4444,2024-02-01,budget_events_summary.csv
+average_day0_vix_change,-1.6733,2024-02-01,budget_events_summary.csv

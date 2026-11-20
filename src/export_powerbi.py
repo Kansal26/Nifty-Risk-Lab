@@ -14,9 +14,14 @@ clean column names, and zero blank/merged rows:
 
 from __future__ import annotations
 
+import datetime
 import os
 
+import numpy as np
+import openpyxl
 import pandas as pd
+from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.table import Table, TableStyleInfo
 
 from src.risk import backtest_var
 
@@ -39,11 +44,19 @@ def generate_market_daily_export(
     df = market_daily_df.copy()
     df["date"] = pd.to_datetime(df["Date"]).dt.strftime("%Y-%m-%d")
 
+    # Rebased index series to 100 on the first date
+    first_nifty = float(df["nifty50_close"].iloc[0])
+    first_bn = float(df["bank_nifty_close"].iloc[0])
+    df["nifty50_idx100"] = (df["nifty50_close"] / first_nifty) * 100.0
+    df["bank_nifty_idx100"] = (df["bank_nifty_close"] / first_bn) * 100.0
+
     cols = [
         "date",
         "nifty50_close",
+        "nifty50_idx100",
         "nifty50_log_return",
         "bank_nifty_close",
+        "bank_nifty_idx100",
         "bank_nifty_log_return",
         "india_vix_close",
         "india_vix_log_return",
@@ -260,12 +273,36 @@ def generate_budget_paths_export(
     """
     df = trajectory_panel_df.copy()
     df["date"] = pd.to_datetime(df["Date"]).dt.strftime("%Y-%m-%d")
+    df["series_label"] = df["event_date"].astype(str)
+
+    # Add cross-event average rows for each tau with event_date left blank
+    avg_rows = []
+    for tau_val in range(-5, 6):
+        tau_sub = df[df["tau"] == tau_val]
+        avg_rows.append(
+            {
+                "event_date": "",
+                "budget_type": "Average",
+                "tau": int(tau_val),
+                "date": "",
+                "series_label": "Average",
+                "nifty_ar": float(tau_sub["nifty_ar"].mean()),
+                "nifty_car": float(tau_sub["nifty_car"].mean()),
+                "bank_nifty_ar": float(tau_sub["bank_nifty_ar"].mean()),
+                "bank_nifty_car": float(tau_sub["bank_nifty_car"].mean()),
+                "vix_level_change": float(tau_sub["vix_level_change"].mean()),
+                "usdinr_level_change": float(tau_sub["usdinr_level_change"].mean()),
+            }
+        )
+    df_avg = pd.DataFrame(avg_rows)
+    df = pd.concat([df, df_avg], ignore_index=True)
 
     cols = [
         "event_date",
         "budget_type",
         "tau",
         "date",
+        "series_label",
         "nifty_ar",
         "nifty_car",
         "bank_nifty_ar",
@@ -377,6 +414,236 @@ def generate_date_table(
     return df_date
 
 
+def generate_kpi_summary_export(
+    market_daily_export_df: pd.DataFrame,
+    risk_metrics_export_df: pd.DataFrame,
+    var_backtest_export_df: pd.DataFrame,
+    budget_summary_export_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """Generate high-level KPI summary table for executive card visuals.
+
+    Parameters
+    ----------
+    market_daily_export_df : pd.DataFrame
+        Exported market daily dataframe.
+    risk_metrics_export_df : pd.DataFrame
+        Exported risk metrics dataframe.
+    var_backtest_export_df : pd.DataFrame
+        Exported VaR backtest dataframe.
+    budget_summary_export_df : pd.DataFrame
+        Exported budget events summary dataframe.
+
+    Returns
+    -------
+    pd.DataFrame
+        Tidy KPI summary dataframe.
+    """
+    latest_m = market_daily_export_df.iloc[-1]
+    latest_r = risk_metrics_export_df.iloc[-1]
+    m_date = str(latest_m["date"])
+    b_date = str(budget_summary_export_df["event_date"].max())
+
+    # VaR 99% normal row
+    var_sub = var_backtest_export_df[
+        (var_backtest_export_df["asset"] == "NIFTY 50")
+        & (var_backtest_export_df["model"] == "Parametric Normal")
+        & (var_backtest_export_df["confidence_level"] == 0.99)
+    ]
+    var_exc = int(var_sub["actual_exceptions"].iloc[0])
+    var_exp = float(var_sub["expected_exceptions"].iloc[0])
+    kupiec_p = float(var_sub["p_value"].iloc[0])
+
+    car_m1_p1 = float(budget_summary_export_df["nifty_car_minus1_plus1_pct"].mean())
+    car_0_p5 = float(budget_summary_export_df["nifty_car_0_plus5_pct"].mean())
+    win_rate = float((budget_summary_export_df["nifty_day0_ar_pct"] > 0).mean())
+    vix_change = float(budget_summary_export_df["vix_day0_change"].mean())
+
+    kpis = [
+        {
+            "metric": "latest_nifty_close",
+            "value": round(float(latest_m["nifty50_close"]), 2),
+            "as_of_date": m_date,
+            "source_file": "market_daily.csv",
+        },
+        {
+            "metric": "latest_daily_log_return",
+            "value": round(float(latest_m["nifty50_log_return"]), 6),
+            "as_of_date": m_date,
+            "source_file": "market_daily.csv",
+        },
+        {
+            "metric": "latest_india_vix",
+            "value": round(float(latest_m["india_vix_close"]), 2),
+            "as_of_date": m_date,
+            "source_file": "market_daily.csv",
+        },
+        {
+            "metric": "latest_trailing_20d_realized_volatility",
+            "value": round(float(latest_r["nifty50_vol_20d"]), 4),
+            "as_of_date": m_date,
+            "source_file": "risk_metrics.csv",
+        },
+        {
+            "metric": "current_drawdown",
+            "value": round(float(latest_r["nifty50_drawdown"]), 4),
+            "as_of_date": m_date,
+            "source_file": "risk_metrics.csv",
+        },
+        {
+            "metric": "var_exceptions_99_normal",
+            "value": float(var_exc),
+            "as_of_date": m_date,
+            "source_file": "var_backtest.csv",
+        },
+        {
+            "metric": "expected_exceptions_99_normal",
+            "value": round(var_exp, 1),
+            "as_of_date": m_date,
+            "source_file": "var_backtest.csv",
+        },
+        {
+            "metric": "kupiec_p_value_99_normal",
+            "value": round(kupiec_p, 4),
+            "as_of_date": m_date,
+            "source_file": "var_backtest.csv",
+        },
+        {
+            "metric": "average_car_minus1_plus1",
+            "value": round(car_m1_p1, 4),
+            "as_of_date": b_date,
+            "source_file": "budget_events_summary.csv",
+        },
+        {
+            "metric": "average_car_0_plus5",
+            "value": round(car_0_p5, 4),
+            "as_of_date": b_date,
+            "source_file": "budget_events_summary.csv",
+        },
+        {
+            "metric": "day0_win_rate",
+            "value": round(win_rate, 4),
+            "as_of_date": b_date,
+            "source_file": "budget_events_summary.csv",
+        },
+        {
+            "metric": "average_day0_vix_change",
+            "value": round(vix_change, 4),
+            "as_of_date": b_date,
+            "source_file": "budget_events_summary.csv",
+        },
+    ]
+    return pd.DataFrame(kpis)
+
+
+def populate_excel_sheet(
+    ws: openpyxl.worksheet.worksheet.Worksheet,
+    df: pd.DataFrame,
+    table_name: str,
+) -> None:
+    """Populate an openpyxl worksheet with a DataFrame and format as an Excel Table.
+
+    Parameters
+    ----------
+    ws : openpyxl.worksheet.worksheet.Worksheet
+        Target worksheet.
+    df : pd.DataFrame
+        Source dataframe.
+    table_name : str
+        Name for the Excel Table (identical to sheet name).
+    """
+    ws.title = table_name
+
+    headers = list(df.columns)
+    for col_idx, header in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=col_idx, value=str(header))
+        cell.font = openpyxl.styles.Font(bold=True)
+
+    date_cols = {"date", "event_date", "effective_date", "as_of_date"}
+
+    for row_idx, row in enumerate(df.itertuples(index=False), start=2):
+        for col_idx, (col_name, val) in enumerate(
+            zip(headers, row, strict=False), start=1
+        ):
+            cell = ws.cell(row=row_idx, column=col_idx)
+
+            if pd.isna(val) or val is None or val == "":
+                cell.value = None
+                continue
+
+            if col_name in date_cols:
+                if isinstance(val, (datetime.date, datetime.datetime)):
+                    cell.value = (
+                        val.date() if isinstance(val, datetime.datetime) else val
+                    )
+                    cell.number_format = "yyyy-mm-dd"
+                elif (
+                    isinstance(val, str)
+                    and len(val) == 10
+                    and val[4] == "-"
+                    and val[7] == "-"
+                ):
+                    try:
+                        d = datetime.date.fromisoformat(val)
+                        cell.value = d
+                        cell.number_format = "yyyy-mm-dd"
+                    except ValueError:
+                        cell.value = str(val)
+                else:
+                    cell.value = str(val)
+            elif isinstance(val, (int, np.integer)):
+                cell.value = int(val)
+            elif isinstance(val, (float, np.floating)):
+                cell.value = float(val)
+            else:
+                cell.value = str(val)
+
+    num_rows = len(df)
+    num_cols = len(headers)
+    ref = f"A1:{get_column_letter(num_cols)}{num_rows + 1}"
+    tab = Table(displayName=table_name, ref=ref)
+    tab.tableStyleInfo = TableStyleInfo(
+        name="TableStyleMedium2",
+        showFirstColumn=False,
+        showLastColumn=False,
+        showRowStripes=True,
+        showColumnStripes=False,
+    )
+    ws.add_table(tab)
+
+
+def build_excel_workbook(
+    tables_dict: dict[str, pd.DataFrame],
+    output_excel_path: str = "exports/nifty_risk_lab.xlsx",
+) -> str:
+    """Build multi-sheet Excel workbook with native Excel Tables and real dates.
+
+    Parameters
+    ----------
+    tables_dict : dict[str, pd.DataFrame]
+        Dictionary mapping table/sheet name to dataframe.
+    output_excel_path : str
+        Output file path for the .xlsx workbook.
+
+    Returns
+    -------
+    str
+        Path to saved Excel workbook.
+    """
+    wb = openpyxl.Workbook()
+    first_sheet = True
+
+    for name, df in tables_dict.items():
+        if first_sheet:
+            ws = wb.active
+            first_sheet = False
+        else:
+            ws = wb.create_sheet(title=name)
+        populate_excel_sheet(ws, df, name)
+
+    wb.save(output_excel_path)
+    return output_excel_path
+
+
 def export_all_powerbi_tables(
     output_dir: str = "exports",
     market_daily_path: str = "data/clean/market_daily.parquet",
@@ -386,12 +653,12 @@ def export_all_powerbi_tables(
     budget_traj_path: str = "data/clean/budget_event_trajectories.parquet",
     budget_raw_path: str = "data/raw/budget_events.csv",
 ) -> dict[str, str]:
-    """Run all exports and generate tidy CSVs in the specified directory.
+    """Run all exports and generate tidy CSVs and Excel workbook.
 
     Parameters
     ----------
     output_dir : str
-        Directory to write CSVs to (default 'exports').
+        Directory to write files to (default 'exports').
     market_daily_path, risk_metrics_path, vix_analysis_path, budget_study_path,
     budget_traj_path, budget_raw_path : str
         Source paths.
@@ -461,6 +728,30 @@ def export_all_powerbi_tables(
     p = os.path.join(output_dir, "date_table.csv")
     exp_date.to_csv(p, index=False)
     exports["date_table"] = p
+
+    # 9. kpi_summary.csv
+    exp_kpi = generate_kpi_summary_export(
+        exp_market, exp_risk, exp_backtest, exp_budget_summary
+    )
+    p = os.path.join(output_dir, "kpi_summary.csv")
+    exp_kpi.to_csv(p, index=False)
+    exports["kpi_summary"] = p
+
+    # Build Excel Workbook containing all 9 tables as native Excel tables
+    tables_for_excel = {
+        "date_table": exp_date,
+        "market_daily": exp_market,
+        "risk_metrics": exp_risk,
+        "vol_comparison": exp_vol,
+        "correlations": exp_corr,
+        "budget_events_summary": exp_budget_summary,
+        "budget_event_paths": exp_budget_paths,
+        "var_backtest": exp_backtest,
+        "kpi_summary": exp_kpi,
+    }
+    excel_path = os.path.join(output_dir, "nifty_risk_lab.xlsx")
+    build_excel_workbook(tables_for_excel, excel_path)
+    exports["nifty_risk_lab_excel"] = excel_path
 
     return exports
 
