@@ -31,15 +31,17 @@ nifty-risk-lab/
 │       ├── budget_event_study.csv
 │       ├── budget_event_trajectories.parquet # Daily event window panel
 │       └── budget_event_trajectories.csv
-├── exports/                   # Tidy analytical CSVs for Power BI on the web
-│   ├── market_daily.csv
-│   ├── risk_metrics.csv
-│   ├── vol_comparison.csv
-│   ├── var_backtest.csv
-│   ├── budget_events_summary.csv
-│   ├── budget_event_paths.csv
+├── exports/                   # Tidy analytical datasets & Excel workbook for Power BI
+│   ├── nifty_risk_lab.xlsx    # Multi-sheet Excel workbook with formatted native tables
+│   ├── market_daily.csv       # Daily pricing, rebased indices (base 100), and returns
+│   ├── risk_metrics.csv       # Rolling volatilities, drawdowns, VaR levels & exceptions
+│   ├── vol_comparison.csv     # Implied vs trailing & retrospective forward realized vol
+│   ├── var_backtest.csv       # Kupiec POF backtest results for 95% and 99% VaR
+│   ├── budget_events_summary.csv # Budget event study cross-sectional summary
+│   ├── budget_event_paths.csv # Daily event trajectories with cross-event average
 │   ├── correlations.csv       # Rolling 60d correlations with global series
-│   └── date_table.csv         # Calendar date dimension table with budget flags
+│   ├── date_table.csv         # Calendar date dimension table with budget flags
+│   └── kpi_summary.csv        # Executive KPI metric deck for dashboard cards
 ├── docs/
 │   ├── figures/               # High-resolution risk distribution & VaR charts
 │   │   ├── returns_distribution.png
@@ -52,6 +54,7 @@ nifty-risk-lab/
 │   │   ├── atm_option_greeks_surface.png
 │   │   └── budget_event_study_car.png
 │   ├── METHODS.md             # Mathematical definitions, Black-Scholes & event study formulas
+│   ├── DATA_DICTIONARY.md     # Complete column units, data types, and definitions
 │   ├── DATA_QUALITY.md        # Audit table of missing, filled, stale, and 5-sigma moves
 │   ├── RISK_FINDINGS.md       # VaR backtest analysis, VRP breakdown & tail risk findings
 │   ├── EVENT_FINDINGS.md      # Union Budget event study empirical findings & limitations
@@ -104,8 +107,10 @@ python -m src.export_powerbi
 ```
 
 For mathematical formulas and assumptions, see [METHODS.md](docs/METHODS.md).  
+For complete column schemas and units, see [DATA_DICTIONARY.md](docs/DATA_DICTIONARY.md).  
 For the data quality audit, see [DATA_QUALITY.md](docs/DATA_QUALITY.md).  
 For risk analytics, VaR backtests & VRP findings, see [RISK_FINDINGS.md](docs/RISK_FINDINGS.md).  
 For Union Budget event study findings & limitations, see [EVENT_FINDINGS.md](docs/EVENT_FINDINGS.md).  
 For Power BI web data modeling & DAX measures, see [POWERBI_GUIDE.md](docs/POWERBI_GUIDE.md).  
 For option pricing and Greeks surfaces, see [option_greeks_surface.ipynb](notebooks/option_greeks_surface.ipynb).
+
